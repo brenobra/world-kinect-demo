@@ -1,0 +1,94 @@
+name: Unblock Website
+
+# Fires when an "unblock-website" issue is opened or labeled. The `deploy` job
+# is gated by the `production` environment, which (with a required reviewer set
+# in repo Settings -> Environments) pauses for human approval before calling
+# the Cloudflare middleware Worker.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  parse:
+    if: github.event.label.name == 'unblock-request'
+    runs-on: ubuntu-latest
+    outputs:
+      domain: ${{ steps.parse.outputs.issueparser_domain }}
+      scope: ${{ steps.parse.outputs.issueparser_scope }}
+      targetGroup: ${{ steps.parse.outputs.issueparser_targetGroup }}
+      justification: ${{ steps.parse.outputs.issueparser_justification }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Parse issue form
+        id: parse
+        uses: stefanbuck/github-issue-parser@v3
+        with:
+          template-path: .github/ISSUE_TEMPLATE/unblock-website.yml
+
+  deploy:
+    needs: parse
+    runs-on: ubuntu-latest
+    environment: production # <-- approval gate (set required reviewers here)
+    steps:
+      - name: Build payload and call Worker
+        id: call
+        env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          SHARED_SECRET: ${{ secrets.SHARED_SECRET }}
+          TITLE: ${{ github.event.issue.title }}
+          DOMAIN: ${{ needs.parse.outputs.domain }}
+          SCOPE: ${{ needs.parse.outputs.scope }}
+          TARGET_GROUP: ${{ needs.parse.outputs.targetGroup }}
+          JUSTIFICATION: ${{ needs.parse.outputs.justification }}
+          REQUESTER: ${{ github.event.issue.user.login }}
+          APPROVER: ${{ github.actor }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          PAYLOAD=$(jq -n \
+            --arg ticketKey "GH-${ISSUE_NUMBER}" \
+            --arg summary "${TITLE}" \
+            --arg requester "${REQUESTER}" \
+            --arg domain "${DOMAIN}" \
+            --arg scope "${SCOPE}" \
+            --arg targetGroup "${TARGET_GROUP}" \
+            --arg justification "${JUSTIFICATION}" \
+            --arg approvedBy "${APPROVER}" \
+            --arg approvedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{ticketKey:$ticketKey, summary:$summary, requester:$requester, domain:$domain, scope:$scope, targetGroup:$targetGroup, justification:$justification, approvedBy:$approvedBy, approvedAt:$approvedAt}')
+          echo "Sending payload:"; echo "$PAYLOAD"
+          RESPONSE=$(curl -sS -X POST "$WORKER_URL" \
+            -H "Content-Type: application/json" \
+            -H "X-Auth-Token: $SHARED_SECRET" \
+            -d "$PAYLOAD")
+          echo "Worker response: $RESPONSE"
+          {
+            echo "response<<EOF"
+            echo "$RESPONSE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment result on issue
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const resp = process.env.RESP || "(no response)";
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: "✅ **Applied to Cloudflare Gateway**\n```json\n" + resp + "\n```",
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              state: "closed",
+            });
+        env:
+          RESP: ${{ steps.call.outputs.response }}

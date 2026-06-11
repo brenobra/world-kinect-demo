@@ -1,0 +1,11 @@
+{
+  "ticketKey": "GH-123",
+  "summary": "Unblock vendorportal.example.com",
+  "requester": "requester@example.com",
+  "domain": "vendorportal.example.com",
+  "scope": "team",
+  "targetGroup": "Finance-Team",
+  "justification": "Vendor invoicing portal needed for monthly close",
+  "approvedBy": "approver@example.com",
+  "approvedAt": "2026-06-09T14:32:00Z"
+}

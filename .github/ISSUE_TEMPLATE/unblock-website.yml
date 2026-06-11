@@ -1,0 +1,43 @@
+name: Unblock Website Request
+description: Request access to a domain/URL that is currently blocked by Cloudflare Gateway.
+title: "[Unblock] "
+labels: ["unblock-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Submit a domain you need unblocked. Once an approver signs off, the
+        request is applied to Cloudflare Gateway automatically.
+  - type: input
+    id: domain
+    attributes:
+      label: Domain / URL to unblock
+      description: The hostname to allow (no http://, no path).
+      placeholder: vendorportal.example.com
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: Who needs this? Use "team" to fix a whole group, not one-off.
+      options:
+        - me
+        - team
+    validations:
+      required: true
+  - type: input
+    id: targetGroup
+    attributes:
+      label: Target group (only if scope = team)
+      description: The identity-provider group name (e.g. Entra group).
+      placeholder: Finance-Team
+    validations:
+      required: false
+  - type: textarea
+    id: justification
+    attributes:
+      label: Business justification
+      placeholder: Why is access needed?
+    validations:
+      required: true

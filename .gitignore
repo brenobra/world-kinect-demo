@@ -1,0 +1,8 @@
+node_modules/
+worker/.dev.vars
+*.tfvars
+.terraform/
+.terraform.lock.hcl
+dist/
+.wrangler/
+.shared-secret.local

@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wk-unblock-middleware",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-01"
+  // All four values are set as deployed secrets (so nothing sensitive is
+  // committed and `wrangler deploy` can't clobber them with empty vars):
+  //   wrangler secret put CF_API_TOKEN
+  //   wrangler secret put SHARED_SECRET
+  //   wrangler secret put CF_ACCOUNT_ID
+  //   wrangler secret put GATEWAY_LIST_ID
+  // For local `wrangler dev`, the same four live in worker/.dev.vars (gitignored).
+}

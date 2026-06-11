@@ -1,0 +1,5 @@
+# Copy to worker/.dev.vars for local `wrangler dev` (this file is gitignored).
+CF_API_TOKEN="your-cloudflare-api-token"
+SHARED_SECRET="local-dev-secret"
+CF_ACCOUNT_ID="your-account-id"
+GATEWAY_LIST_ID="your-gateway-list-id"
