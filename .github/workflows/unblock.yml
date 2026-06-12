@@ -62,18 +62,28 @@ jobs:
             --arg approvedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{ticketKey:$ticketKey, summary:$summary, requester:$requester, domain:$domain, scope:$scope, targetGroup:$targetGroup, justification:$justification, approvedBy:$approvedBy, approvedAt:$approvedAt}')
           echo "Sending payload:"; echo "$PAYLOAD"
-          RESPONSE=$(curl -sS -X POST "$WORKER_URL" \
+          # Capture body + HTTP status separately so we can fail on 4xx/5xx
+          # (plain `curl` exits 0 on HTTP errors, which would hide failures).
+          RAW=$(curl -sS -w $'\n%{http_code}' -X POST "$WORKER_URL" \
             -H "Content-Type: application/json" \
             -H "X-Auth-Token: $SHARED_SECRET" \
             -d "$PAYLOAD")
-          echo "Worker response: $RESPONSE"
+          CODE=$(printf '%s' "$RAW" | tail -n1)
+          BODY=$(printf '%s' "$RAW" | sed '$d')
+          echo "Worker HTTP $CODE response: $BODY"
           {
             echo "response<<EOF"
-            echo "$RESPONSE"
+            echo "$BODY"
             echo "EOF"
+            echo "code=$CODE"
           } >> "$GITHUB_OUTPUT"
+          if [ "$CODE" -ge 300 ]; then
+            echo "::error::Worker returned HTTP $CODE — domain was NOT applied."
+            exit 1
+          fi
 
-      - name: Comment result on issue
+      - name: Comment success on issue
+        if: success()
         uses: actions/github-script@v8
         with:
           script: |
@@ -92,3 +102,20 @@ jobs:
             });
         env:
           RESP: ${{ steps.call.outputs.response }}
+
+      - name: Comment failure on issue
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const resp = process.env.RESP || "(no response)";
+            const code = process.env.CODE || "unknown";
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: "❌ **Failed to apply to Cloudflare Gateway** (HTTP " + code + "). The domain was not unblocked.\n```json\n" + resp + "\n```",
+            });
+        env:
+          RESP: ${{ steps.call.outputs.response }}
+          CODE: ${{ steps.call.outputs.code }}

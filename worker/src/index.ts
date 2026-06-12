@@ -74,10 +74,11 @@ export default {
 
     const cfData = (await cfRes.json()) as { success?: boolean };
     if (!cfRes.ok || cfData.success === false) {
-      return json(
-        { error: "Cloudflare API error", ref, domain, details: cfData },
-        502,
-      );
+      // Log full detail server-side (visible in `wrangler tail`), but don't
+      // leak Cloudflare internals (account/list IDs, raw errors) back to the
+      // caller — the workflow echoes this response into a public issue.
+      console.error("Cloudflare API error", { ref, domain, status: cfRes.status, details: cfData });
+      return json({ error: "Cloudflare API error", ref, domain }, 502);
     }
 
     // 4. Report back. (Group-scoped enforcement is a policy concern; see README.)
